@@ -4,7 +4,11 @@ const { httpStatusCode } = require('../constants');
 
 const handleGetTodos = async (req, res) => {
   try {
-    const queryFindTodos = `SELECT * from ${dbParameters.NAME}.todos WHERE ownerId='${req.tokenData.userId} and isDeleted='0';`
+    const queryFindTodos = `
+    SELECT color, description, due_date, is_archived, is_favourite, ${dbParameters.NAME}.todos.id ownerId, mo, tu, we, th, fr, st, su FROM ${dbParameters.NAME}.todos
+    CROSS JOIN ${dbParameters.NAME}.todosDays
+    WHERE ownerId='${req.tokenData.userId} and isDeleted='0' and eventId=${dbParameters.NAME}.todos.id
+    `
 
     connection.query(queryFindTodos, (err, results) => {
       if (results === 0) {
@@ -12,6 +16,24 @@ const handleGetTodos = async (req, res) => {
           message: 'You do not have any tasks to do',
         })
       }
+      results.map((elem) => {
+        return {
+          color: elem.color,
+          description: elem.description,
+          due_date: elem.due_date,
+          is_archived: elem.is_archived,
+          is_favourite: elem.is_favourite,
+          repeating_days: {
+            mo: elem.mo,
+            tu: elem.tu,
+            we: elem.we,
+            th: elem.th,
+            fr: elem.fr,
+            st: elem.st,
+            su: elem.su, 
+          },
+        }
+      })
       return res.send(results);
     })
   } catch (err) {
@@ -26,15 +48,31 @@ const handleAddTodo = async (req, res) => {
     const insertQuery = `INSERT INTO ${dbParameters.NAME}.todos (color, description, due_date, is_archived, is_favourite, ownerId) 
     VALUES ('${req.body.color}', '${req.body.description}', '${req.body.due_date}', '${req.body.is_archived}', '${req.body.is_favourite}', '${req.tokenData.userId}');`
 
+    const insertDaysQuery = `INSERT INTO ${dbParameters}.repeatingDays (mo, tu, we, th, fr, st, su)
+    VALUES('${req.body.repeating_days.mo}', 
+    ${req.body.repeating_days.tu}',
+    '${req.body.repeating_days.we}',
+    '${req.body.repeating_days.th}',
+    '${req.body.repeating_days.fr}',
+    '${req.body.repeating_days.st}',
+    '${req.body.repeating_days.su}');`
+
     connection.query(insertQuery, (err) => {
       if (err) {
         return res.status(httpStatusCode.BAD_REQUEST).send({
           message: 'Error occured while adding your task',
         });
       }
-      return res.status(httpStatusCode.OK).send({
-        message: 'Task was successfully added',
-      });
+      connection.query(insertDaysQuery, (err) => {
+        if (err) {
+          return res.status(httpStatusCode.BAD_REQUEST).send({
+            message: 'Error occured while adding your task',
+          });
+        }
+        return res.status(httpStatusCode.OK).send({
+          message: 'Task was successfully added',
+        });
+      })
     });
   } catch (err) {
     return res.status(httpStatusCode.INTERNAL_SERVER_ERROR).send({
@@ -63,19 +101,38 @@ const handleUpdateTodo = async (req, res) => {
     description='${data.description}',
     due_date='${data.due_date}',
     is_archived='${data.is_archived}',
-    is_favourite='${data.is_favourite}',
+    is_favourite='${data.is_favourite}'
     WHERE ownerId='${req.tokenData.userId}';
     `;
+
+    const queryEditTodoDays = `
+    UPDATE ${dbParameters.NAME}.repeatingDays SET
+    mo='${data.repeating_days.mo}',
+    mo='${data.repeating_days.tu}',
+    mo='${data.repeating_days.we}',
+    mo='${data.repeating_days.th}',
+    mo='${data.repeating_days.fr}',
+    mo='${data.repeating_days.st}',
+    mo='${data.repeating_days.su}'
+    WHERE eventId='${req.query.eventId}';
+    `
 
     connection.query(queryEditTodo, (err) => {
       if (err) {
         return res.status(httpStatusCode.BAD_REQUEST).send({
-          message: 'Error occured while adding your task',
+          message: 'Error occured while editing your task',
         });
       }
-      return res.status(httpStatusCode.OK).send({
-        message: 'Task was successfully added',
-      });
+      connection.query(queryEditTodoDays, (err) => {
+        if (err) {
+          return res.status(httpStatusCode.BAD_REQUEST).send({
+            message: 'Error occured while editing your task',
+          });
+        }
+        return res.status(httpStatusCode.OK).send({
+          message: 'Task was successfully edited',
+        });
+      })
     });
   } catch (err) {
     return res.status(httpStatusCode.INTERNAL_SERVER_ERROR).send({
