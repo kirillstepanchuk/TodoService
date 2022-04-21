@@ -6,7 +6,7 @@ const handleGetTodos = async (req, res) => {
   try {
     const queryFindTodos = `
     SELECT color, description, due_date, is_archived, is_favourite, ${dbParameters.NAME}.todos.id ownerId, mo, tu, we, th, fr, st, su FROM ${dbParameters.NAME}.todos
-    CROSS JOIN ${dbParameters.NAME}.todosDays
+    CROSS JOIN ${dbParameters.NAME}.repeatingDays
     WHERE ownerId='${req.tokenData.userId} and isDeleted='0' and eventId=${dbParameters.NAME}.todos.id
     `
 
@@ -45,10 +45,11 @@ const handleGetTodos = async (req, res) => {
 
 const handleAddTodo = async (req, res) => {
   try {
+    const date = req.body.due_date.toISOString().slice(0, 19).replace(' ', 'T');
     const insertQuery = `INSERT INTO ${dbParameters.NAME}.todos (color, description, due_date, is_archived, is_favourite, ownerId) 
-    VALUES ('${req.body.color}', '${req.body.description}', '${req.body.due_date}', '${req.body.is_archived}', '${req.body.is_favourite}', '${req.tokenData.userId}');`
+    VALUES ('${req.body.color}', '${req.body.description}', '${date}', '${req.body.is_archived}', '${req.body.is_favourite}', '${req.tokenData.userId}');`
 
-    const insertDaysQuery = `INSERT INTO ${dbParameters}.repeatingDays (mo, tu, we, th, fr, st, su)
+    const insertDaysQuery = `INSERT INTO ${dbParameters.NAME}.repeatingDays (mo, tu, we, th, fr, st, su)
     VALUES('${req.body.repeating_days.mo}', 
     ${req.body.repeating_days.tu}',
     '${req.body.repeating_days.we}',
@@ -83,7 +84,8 @@ const handleAddTodo = async (req, res) => {
 
 const handleUpdateTodo = async (req, res) => {
   try {
-    const { data } = req.body;
+    const data = req.body;
+    const date = data.due_date.toISOString().slice(0, 19).replace(' ', 'T');
 
     const queryFindOrganizer = `SELECT ownerId FROM ${dbParameters.NAME}.todos where id='${req.query.eventId}'`;
 
@@ -99,7 +101,7 @@ const handleUpdateTodo = async (req, res) => {
     UPDATE ${dbParameters.NAME}.todos SET 
     color='${data.color}',
     description='${data.description}',
-    due_date='${data.due_date}',
+    due_date='${date}',
     is_archived='${data.is_archived}',
     is_favourite='${data.is_favourite}'
     WHERE ownerId='${req.tokenData.userId}';
