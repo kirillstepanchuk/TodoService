@@ -4,16 +4,34 @@ const { httpStatusCode } = require('../constants');
 
 const handleGetTodos = async (req, res) => {
   try {
-    const queryFindTodos = `
-    SELECT id, color, description, due_date, is_archived, is_favorite, mo, tu, we, th, fr, st, su 
-    FROM ${dbParameters.NAME}.todos
-    WHERE owner_id='${req.tokenData.userId}' and is_deleted='0';
-    `
+    let selectFilteredTodos;
+    const dateNow = new Date().toISOString().slice(0, 19).replace(' ', 'T')
 
-    connection.query(queryFindTodos, (err, results) => {
+    switch (req.params.filter_type) {
+      case 'overdue':
+        selectFilteredTodos = `SELECT color, description, due_date, is_archived, is_favorite, owner_id, mo, tu, we, th, fr, st, su FROM ${dbParameters.NAME}.todos WHERE due_date < '${dateNow}'`;
+        break;
+      case 'today':
+        selectFilteredTodos = `SELECT color, description, due_date, is_archived, is_favorite, owner_id, mo, tu, we, th, fr, st, su FROM ${dbParameters.NAME}.todos WHERE due_date `;
+        break;
+      case 'favourites':
+        selectFilteredTodos = `SELECT color, description, due_date, is_archived, is_favorite, owner_id, mo, tu, we, th, fr, st, su FROM ${dbParameters.NAME}.todos WHERE is_favourite='1'`;
+        break;
+      case 'archived':
+        selectFilteredTodos = `SELECT color, description, due_date, is_archived, is_favorite, owner_id, mo, tu, we, th, fr, st, su FROM ${dbParameters.NAME}.todos WHERE is_archived='1'`;
+        break;
+      case 'repeating':
+        selectFilteredTodos = `SELECT color, description, due_date, is_archived, is_favorite, owner_id, mo, tu, we, th, fr, st, su FROM ${dbParameters.NAME}.todos WHERE mo='1' OR tu='1' OR we='1' OR th='1' OR fr='1' OR st='1' OR su='1'`;
+        break;
+      case 'all':
+      default:
+        selectFilteredTodos = `SELECT color, description, due_date, is_archived, is_favorite, owner_id, mo, tu, we, th, fr, st, su FROM ${dbParameters.NAME}.todos WHERE is_archived='0'`;
+    }
+
+    connection.query(selectFilteredTodos, (err, results) => {
       if (results === 0) {
         return res.status(httpStatusCode.BAD_REQUEST).send({
-          message: 'You do not have any tasks to do',
+          message: 'You do not have any tasks that matches this filter',
         })
       }
       const result = results.map((elem) => {
@@ -35,8 +53,17 @@ const handleGetTodos = async (req, res) => {
           },
         }
       })
+      switch (req.params.sort_type) {
+        case 'down':
+          result.filter((a, b) => { return new Date(b.due_date) - new Date(a.due_date) });
+          break;
+        case 'up':
+        default:
+          result.filter((a, b) => { return new Date(a.due_date) - new Date(b.due_date) })
+          break;
+      }
       return res.send(result);
-    })
+    })   
   } catch (err) {
     return res.status(httpStatusCode.INTERNAL_SERVER_ERROR).send({
       message: 'Something went wrong, try again',
