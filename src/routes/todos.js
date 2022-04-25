@@ -1,5 +1,3 @@
-import verifyToken from '../middleware/verifyToken';
-
 const express = require('express');
 
 const {
@@ -8,12 +6,13 @@ const {
   handleUpdateTodo,
   handleDeleteTodo,
 } = require('../controllers/todos');
+const verifyToken = require('../middleware/verifyToken')
 
 const router = express();
 
 router.get('/tasks', verifyToken, handleGetTodos);
 router.post('/tasks', verifyToken, handleAddTodo);
-router.put('/tasks', verifyToken, handleUpdateTodo);
-router.delete('/tasks', verifyToken, handleDeleteTodo);
+router.put('/tasks/:id', verifyToken, handleUpdateTodo);
+router.delete('/tasks/:id', verifyToken, handleDeleteTodo);
 
 module.exports = router;

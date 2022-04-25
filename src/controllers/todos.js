@@ -5,9 +5,9 @@ const { httpStatusCode } = require('../constants');
 const handleGetTodos = async (req, res) => {
   try {
     const queryFindTodos = `
-    SELECT color, description, due_date, is_archived, is_favourite, ${dbParameters.NAME}.todos.id ownerId, mo, tu, we, th, fr, st, su FROM ${dbParameters.NAME}.todos
-    CROSS JOIN ${dbParameters.NAME}.repeatingDays
-    WHERE ownerId='${req.tokenData.userId} and isDeleted='0' and eventId=${dbParameters.NAME}.todos.id
+    SELECT id, color, description, due_date, is_archived, is_favorite, mo, tu, we, th, fr, st, su 
+    FROM ${dbParameters.NAME}.todos
+    WHERE owner_id='${req.tokenData.userId}' and is_deleted='0';
     `
 
     connection.query(queryFindTodos, (err, results) => {
@@ -16,25 +16,26 @@ const handleGetTodos = async (req, res) => {
           message: 'You do not have any tasks to do',
         })
       }
-      results.map((elem) => {
+      const result = results.map((elem) => {
         return {
+          id: elem.id,
           color: elem.color,
           description: elem.description,
           due_date: elem.due_date,
-          is_archived: elem.is_archived,
-          is_favourite: elem.is_favourite,
+          is_archived: Boolean(elem.is_archived),
+          is_favourite: Boolean(elem.is_favorite),
           repeating_days: {
-            mo: elem.mo,
-            tu: elem.tu,
-            we: elem.we,
-            th: elem.th,
-            fr: elem.fr,
-            st: elem.st,
-            su: elem.su, 
+            mo: Boolean(elem.mo),
+            tu: Boolean(elem.tu),
+            we: Boolean(elem.we),
+            th: Boolean(elem.th),
+            fr: Boolean(elem.fr),
+            st: Boolean(elem.st),
+            su: Boolean(elem.su),
           },
         }
       })
-      return res.send(results);
+      return res.send(result);
     })
   } catch (err) {
     return res.status(httpStatusCode.INTERNAL_SERVER_ERROR).send({
@@ -45,18 +46,25 @@ const handleGetTodos = async (req, res) => {
 
 const handleAddTodo = async (req, res) => {
   try {
-    const date = req.body.due_date.toISOString().slice(0, 19).replace(' ', 'T');
-    const insertQuery = `INSERT INTO ${dbParameters.NAME}.todos (color, description, due_date, is_archived, is_favourite, ownerId) 
-    VALUES ('${req.body.color}', '${req.body.description}', '${date}', '${req.body.is_archived}', '${req.body.is_favourite}', '${req.tokenData.userId}');`
-
-    const insertDaysQuery = `INSERT INTO ${dbParameters.NAME}.repeatingDays (mo, tu, we, th, fr, st, su)
-    VALUES('${req.body.repeating_days.mo}', 
-    ${req.body.repeating_days.tu}',
-    '${req.body.repeating_days.we}',
-    '${req.body.repeating_days.th}',
-    '${req.body.repeating_days.fr}',
-    '${req.body.repeating_days.st}',
-    '${req.body.repeating_days.su}');`
+    const data = req.body;
+    const date = new Date(req.body.due_date).toISOString().slice(0, 19).replace(' ', 'T');
+    const insertQuery = `
+    INSERT INTO ${dbParameters.NAME}.todos 
+    (color, description, due_date, is_archived, is_favorite, owner_id, mo, tu, we, th, fr, st, su)
+    VALUES 
+    ('${data.color}',
+    '${data.description}',
+    '${date}',
+    '${data.is_archived}',
+    '${data.is_favourite}',
+    '${req.tokenData.userId}',
+    '${data.repeating_days.mo}', 
+    '${data.repeating_days.tu}',
+    '${data.repeating_days.we}',
+    '${data.repeating_days.th}',
+    '${data.repeating_days.fr}',
+    '${data.repeating_days.st}',
+    '${data.repeating_days.su}');`
 
     connection.query(insertQuery, (err) => {
       if (err) {
@@ -64,16 +72,10 @@ const handleAddTodo = async (req, res) => {
           message: 'Error occured while adding your task',
         });
       }
-      connection.query(insertDaysQuery, (err) => {
-        if (err) {
-          return res.status(httpStatusCode.BAD_REQUEST).send({
-            message: 'Error occured while adding your task',
-          });
-        }
-        return res.status(httpStatusCode.OK).send({
-          message: 'Task was successfully added',
-        });
-      })
+
+      return res.status(httpStatusCode.OK).send({
+        message: 'Task was successfully added',
+      });
     });
   } catch (err) {
     return res.status(httpStatusCode.INTERNAL_SERVER_ERROR).send({
@@ -85,12 +87,12 @@ const handleAddTodo = async (req, res) => {
 const handleUpdateTodo = async (req, res) => {
   try {
     const data = req.body;
-    const date = data.due_date.toISOString().slice(0, 19).replace(' ', 'T');
+    const date = new Date(data.due_date).toISOString().slice(0, 19).replace(' ', 'T');
 
-    const queryFindOrganizer = `SELECT ownerId FROM ${dbParameters.NAME}.todos where id='${req.query.eventId}'`;
+    const queryFindOrganizer = `SELECT owner_id FROM ${dbParameters.NAME}.todos where id='${req.params.id}'`;
 
     connection.query(queryFindOrganizer, (err, result) => {
-      if (result[0].ownerId !== req.tokenData.userId) {
+      if (result[0].owner_id !== req.tokenData.userId) {
         return res.status(httpStatusCode.BAD_REQUEST).send({
           message: 'You have no permission to edit this task',
         });
@@ -103,21 +105,16 @@ const handleUpdateTodo = async (req, res) => {
     description='${data.description}',
     due_date='${date}',
     is_archived='${data.is_archived}',
-    is_favourite='${data.is_favourite}'
-    WHERE ownerId='${req.tokenData.userId}';
-    `;
-
-    const queryEditTodoDays = `
-    UPDATE ${dbParameters.NAME}.repeatingDays SET
+    is_favorite='${data.is_favorite}',
     mo='${data.repeating_days.mo}',
-    mo='${data.repeating_days.tu}',
-    mo='${data.repeating_days.we}',
-    mo='${data.repeating_days.th}',
-    mo='${data.repeating_days.fr}',
-    mo='${data.repeating_days.st}',
-    mo='${data.repeating_days.su}'
-    WHERE eventId='${req.query.eventId}';
-    `
+    tu='${data.repeating_days.tu}',
+    we='${data.repeating_days.we}',
+    th='${data.repeating_days.th}',
+    fr='${data.repeating_days.fr}',
+    st='${data.repeating_days.st}',
+    su='${data.repeating_days.su}'
+    WHERE id='${req.params.id}';
+    `;
 
     connection.query(queryEditTodo, (err) => {
       if (err) {
@@ -125,16 +122,10 @@ const handleUpdateTodo = async (req, res) => {
           message: 'Error occured while editing your task',
         });
       }
-      connection.query(queryEditTodoDays, (err) => {
-        if (err) {
-          return res.status(httpStatusCode.BAD_REQUEST).send({
-            message: 'Error occured while editing your task',
-          });
-        }
-        return res.status(httpStatusCode.OK).send({
-          message: 'Task was successfully edited',
-        });
-      })
+
+      return res.status(httpStatusCode.OK).send({
+        message: 'Task was successfully edited',
+      });
     });
   } catch (err) {
     return res.status(httpStatusCode.INTERNAL_SERVER_ERROR).send({
@@ -145,11 +136,19 @@ const handleUpdateTodo = async (req, res) => {
 
 const handleDeleteTodo = async (req, res) => {
   try {
-    const sqlQuery = `UPDATE ${dbParameters.NAME}.todos SET isDeleted='1' WHERE id='${req.body.eventId}';`;
+    const sqlQuery = `UPDATE ${dbParameters.NAME}.todos SET is_deleted='1' WHERE id='${req.params.id}';`;
 
-    connection.query(sqlQuery, () => res.status(httpStatusCode.OK).send({
-      message: 'Task was deleted successfully',
-    }));
+    connection.query(sqlQuery, (err) => {
+      if (err) {
+        return res.status(httpStatusCode.BAD_REQUEST).send({
+          message: 'Error occured while deleting your task',
+        })
+      }
+
+      return res.status(httpStatusCode.OK).send({
+        message: 'Task was deleted successfully',
+      })
+    });
   } catch (e) {
     return res.status(httpStatusCode.INTERNAL_SERVER_ERROR).send({
       message: 'Something went wrong, try again',
