@@ -42,11 +42,11 @@
 
 ## Запросы на задачи
 
-### GET /tasks - Получение всех созданных задач.
+### GET /tasks - Получение созданных задач c учетом фильтров, страницы, сортировки.
   - Коды ответов: 200 ОK, 401 Unauthorized.
   - Пример:
     - Request:
-      - URL: GET /tasks;
+      - URL: GET /tasks?filter_type=overdue&sort_type=down&page=1;
       - Headers: Authorization: Basic kTy9gIdsz2317rD.
     - Response:
       - Status: 200 OK;
