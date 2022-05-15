@@ -15,7 +15,7 @@ const verifyToken = (req, res, next) => {
 
   if (!requestToken) {
     return res.status(httpStatusCode.UNAUTHORIZED).send({
-      message: req.t('token.verify.tokenIsRequired'),
+      message: 'Token is required',
     });
   }
 
@@ -25,7 +25,7 @@ const verifyToken = (req, res, next) => {
     connection.query(queryFindToken, (error, storedTokens) => {
       if (storedTokens.length === 0) {
         return res.status(httpStatusCode.UNAUTHORIZED).send({
-          message: req.t('token.verify.noTokenInDataBase'),
+          message: 'There is no token in DB',
         });
       }
 
@@ -33,14 +33,14 @@ const verifyToken = (req, res, next) => {
 
       if (isTokenExpired(expireDate)) {
         return res.status(httpStatusCode.UNAUTHORIZED).send({
-          message: req.t('token.verify.invalidToken'),
+          message: 'Invalid token',
         });
       }
 
       jwt.verify(requestToken, process.env.JWT_SECRET, (e, decoded) => {
         if (e) {
           return res.status(httpStatusCode.INTERNAL_SERVER_ERROR).send({
-            message: req.t('token.verify.expired'),
+            message: 'Token expired',
           });
         }
         req.tokenData = decoded;
@@ -49,7 +49,7 @@ const verifyToken = (req, res, next) => {
     });
   } catch (err) {
     return res.status(httpStatusCode.UNAUTHORIZED).send({
-      message: req.t('token.verify.invalidToken'),
+      message: 'Invalid token',
     });
   }
 };

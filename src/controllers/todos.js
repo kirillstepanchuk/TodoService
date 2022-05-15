@@ -1,34 +1,35 @@
 const { connection, dbParameters } = require('../configs/db.config');
 
-const { httpStatusCode } = require('../constants');
+const { httpStatusCode, NUM_PER_PAGE } = require('../constants');
 
 const handleGetTodos = async (req, res) => {
   try {
     let selectFilteredTodos;
-    const dateNow = new Date().toISOString().slice(0, 19).replace(' ', 'T')
+    const dateNow = new Date().toISOString().slice(0, 19).replace(' ', 'T');
+    const defaultSql = `SELECT id, color, description, due_date, is_archived, is_favorite, owner_id, mo, tu, we, th, fr, st, su FROM ${dbParameters.NAME}.todos`
 
-    switch (req.params.filter_type) {
+    switch (req.query.filter_type) {
       case 'overdue':
-        selectFilteredTodos = `SELECT color, description, due_date, is_archived, is_favorite, owner_id, mo, tu, we, th, fr, st, su FROM ${dbParameters.NAME}.todos WHERE due_date < '${dateNow}'`;
+        selectFilteredTodos = `WHERE due_date < '${dateNow}' AND owner_id='${req.tokenData.userId}'`;
         break;
       case 'today':
-        selectFilteredTodos = `SELECT color, description, due_date, is_archived, is_favorite, owner_id, mo, tu, we, th, fr, st, su FROM ${dbParameters.NAME}.todos WHERE due_date `;
+        selectFilteredTodos = `WHERE due_date > '${dateNow}' AND owner_id='${req.tokenData.userId}'`;
         break;
       case 'favourites':
-        selectFilteredTodos = `SELECT color, description, due_date, is_archived, is_favorite, owner_id, mo, tu, we, th, fr, st, su FROM ${dbParameters.NAME}.todos WHERE is_favourite='1'`;
+        selectFilteredTodos = `WHERE is_favourite='1' AND owner_id='${req.tokenData.userId}'`;
         break;
       case 'archived':
-        selectFilteredTodos = `SELECT color, description, due_date, is_archived, is_favorite, owner_id, mo, tu, we, th, fr, st, su FROM ${dbParameters.NAME}.todos WHERE is_archived='1'`;
+        selectFilteredTodos = `WHERE is_archived='1' AND owner_id='${req.tokenData.userId}'`;
         break;
       case 'repeating':
-        selectFilteredTodos = `SELECT color, description, due_date, is_archived, is_favorite, owner_id, mo, tu, we, th, fr, st, su FROM ${dbParameters.NAME}.todos WHERE mo='1' OR tu='1' OR we='1' OR th='1' OR fr='1' OR st='1' OR su='1'`;
+        selectFilteredTodos = `WHERE mo='1' OR tu='1' OR we='1' OR th='1' OR fr='1' OR st='1' OR su='1' AND owner_id='${req.tokenData.userId}'`;
         break;
       case 'all':
       default:
-        selectFilteredTodos = `SELECT color, description, due_date, is_archived, is_favorite, owner_id, mo, tu, we, th, fr, st, su FROM ${dbParameters.NAME}.todos WHERE is_archived='0'`;
+        selectFilteredTodos = `WHERE is_archived='0' AND owner_id='${req.tokenData.userId}'`;
     }
 
-    connection.query(selectFilteredTodos, (err, results) => {
+    connection.query(`${defaultSql} ${selectFilteredTodos}`, (err, results) => {
       if (results === 0) {
         return res.status(httpStatusCode.BAD_REQUEST).send({
           message: 'You do not have any tasks that matches this filter',
@@ -53,7 +54,8 @@ const handleGetTodos = async (req, res) => {
           },
         }
       })
-      switch (req.params.sort_type) {
+
+      switch (req.query.sort_type) {
         case 'down':
           result.filter((a, b) => { return new Date(b.due_date) - new Date(a.due_date) });
           break;
@@ -62,8 +64,13 @@ const handleGetTodos = async (req, res) => {
           result.filter((a, b) => { return new Date(a.due_date) - new Date(b.due_date) })
           break;
       }
-      return res.send(result);
-    })   
+
+      const start = ((+req.query.page - 1) * NUM_PER_PAGE);
+      const end = start + NUM_PER_PAGE;
+      const pagedResult = result.slice(start, end);
+
+      return res.send(pagedResult);
+    })
   } catch (err) {
     return res.status(httpStatusCode.INTERNAL_SERVER_ERROR).send({
       message: 'Something went wrong, try again',

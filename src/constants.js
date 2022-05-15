@@ -1,5 +1,6 @@
 module.exports = {
   CLIENT_URL: 'http://localhost:3001',
+  NUM_PER_PAGE: 4,
   FILE_SIZE_LIMIT: '50mb',
   EXPIRE_HOURS: 20,
   appParameters: {
